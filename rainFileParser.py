@@ -1,12 +1,12 @@
 import requests
 from datetime import datetime, date
 from collections import defaultdict
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from typing import List, Tuple, Optional
 import struct
 import gzip
 from io import BytesIO
-
+from typing import Dict
 
 @dataclass
 class RmaDailyRain:
@@ -30,10 +30,10 @@ class RmaMonthlyRain:
 @dataclass
 class GridRain:
     grid_id: int
-    total_rainfall_mm: float = 0
+    rain_data: Dict[int, float] = field(default_factory=dict)
 
-    def set_total_rainfall_mm(self, rainfall_mm):
-        self.total_rainfall_mm = rainfall_mm
+    def set_rain_in_month(self, month: int, rainfall_mm: float):
+        self.rain_data[month] = rainfall_mm
 
     def to_dict(self):
         return asdict(self)
@@ -70,10 +70,11 @@ def retrieve_rain_data_for_months(year: int, months: List[int], finalized: bool,
         all_data_included = all_month_data_included
         for grid_id, month_rain in rain_data.items():
             if grid_id not in total_rain_by_grid:
-                total_rain_by_grid[grid_id] = GridRain(grid_id, month_rain.total_rainfall_mm)
-            else:
-                grid_rain = total_rain_by_grid[grid_id]
-                grid_rain.set_total_rainfall_mm(grid_rain.total_rainfall_mm + month_rain.total_rainfall_mm)
+                total_rain_by_grid[grid_id] = GridRain(grid_id)
+
+            grid_rain = total_rain_by_grid[grid_id]
+            for month, rainfall_mm in month_rain.items():
+                grid_rain.set_rain_in_month(month, rainfall_mm)
 
     return RainResponse(year, interval_code, all_data_included, finalized, last_rain_date_fin, [v for v in total_rain_by_grid.values()])
 
