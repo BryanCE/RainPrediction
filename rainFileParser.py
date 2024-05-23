@@ -7,6 +7,7 @@ import struct
 import gzip
 from io import BytesIO
 
+
 @dataclass
 class RmaDailyRain:
     grid_id: int
@@ -15,13 +16,16 @@ class RmaDailyRain:
     station: int
     is_final: bool
 
+
 @dataclass
 class RmaMonthlyRain:
     year: int
     month: int
     total_rainfall_mm: float = 0
+
     def set_total_rainfall_mm(self, rainfall_mm):
         self.total_rainfall_mm = rainfall_mm
+
 
 @dataclass
 class GridRain:
@@ -30,16 +34,18 @@ class GridRain:
 
     def set_total_rainfall_mm(self, rainfall_mm):
         self.total_rainfall_mm = rainfall_mm
+
     def to_dict(self):
         return asdict(self)
-    
+
+
 @dataclass
 class RainResponse:
     year: int
     interval_code: int
     all_data_included: bool
     finalized: bool
-    last_rain_date: datetime
+    last_rain_date: date
     rain_data: list[GridRain]
 
     def to_dict(self):
@@ -48,7 +54,7 @@ class RainResponse:
             "all_data_included": self.all_data_included,
             "finalized": self.finalized,
             "interval_code": self.interval_code,
-            "last_rain_date": self.last_rain_date,
+            "last_rain_date": self.last_rain_date.strftime("%Y-%m-%d"),
             "rain_data": [grid_rain.to_dict() for grid_rain in self.rain_data]
         }
 
@@ -102,17 +108,18 @@ def read_daily_data(year: int, month: int, day: int, is_final: bool) -> Optional
 
     try:
         data = get_little_endian_data(url, type_)
-        rain = [struct.unpack("<f", data[i:i+4])[0] for i in range(0, num_grids * 4, 4)]
-        stnm = [struct.unpack("<f", data[i:i+4])[0] for i in range(num_grids * 4, num_grids * 8, 4)]
+        rain = [struct.unpack('<f', data[i:i + 4])[0] for i in range(0, num_grids * 4, 4)]
+        stnm = [struct.unpack('<f', data[i:i + 4])[0] for i in range(num_grids * 4, 2 * num_grids * 4, 4)]
 
-        daily_rains = [RmaDailyRain(i + 1, datetime(year, month, day), rain[i] / 10, round(stnm[i]), is_final) for i in range(num_grids) if rain[i] >= -100]
-
+        daily_rains = [RmaDailyRain(i + 1, datetime(year, month, day), rain[i] / 10, round(stnm[i]), is_final) for i in
+                       range(num_grids) if rain[i] >= -100]
         return daily_rains
-    
+
     except requests.exceptions.RequestException as e:
         print(f"Error retrieving file {url}: {e}")
         return None
-    
+
+
 def determine_folder_and_type(year: int, is_final: bool) -> Tuple[str, str]:
     if year < 2007:
         return "V1.0", "gz"
@@ -124,6 +131,7 @@ def determine_folder_and_type(year: int, is_final: bool) -> Tuple[str, str]:
         type_ = "UPDATED" if is_final else "RT"
         return type_, type_
 
+
 def get_little_endian_data(url: str, type_: str) -> bytes:
     response = requests.get(url, timeout=5)
     response.raise_for_status()
@@ -133,24 +141,11 @@ def get_little_endian_data(url: str, type_: str) -> bytes:
             return gzip_file.read()
     else:
         return response.content
-    
+
+
 def calculate_days_in_month(year: int, month: int) -> int:
-    try:
-        if month == 12:
-            next_month = datetime(year + 1, 1, 1)
-        else:
-            next_month = datetime(year, month + 1, 1)
-        return (next_month - datetime(year, month, 1)).days
-    except ValueError:
-        # Handle cases where the input year or month is invalid
-        return 0
-
-
-
-
-
-            
-
-
-
-
+    if month == 12:
+        next_month = datetime(year + 1, 1, 1)
+    else:
+        next_month = datetime(year, month + 1, 1)
+    return (next_month - datetime(year, month, 1)).days
