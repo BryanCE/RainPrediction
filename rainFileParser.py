@@ -6,7 +6,7 @@ from typing import List, Tuple, Optional
 import struct
 import gzip
 from io import BytesIO
-from typing import Dict
+from typing import List, Dict
 
 @dataclass
 class RmaDailyRain:
@@ -30,10 +30,11 @@ class RmaMonthlyRain:
 @dataclass
 class GridRain:
     grid_id: int
-    rain_data: Dict[int, float] = field(default_factory=dict)
+    month_data: List[Dict[int, float]] = field(default_factory=list)
 
     def set_rain_in_month(self, month: int, rainfall_mm: float):
-        self.rain_data[month] = rainfall_mm
+        month_data = {month: rainfall_mm}
+        self.month_data.append(month_data)
 
     def to_dict(self):
         return asdict(self)
@@ -59,8 +60,9 @@ class RainResponse:
         }
 
 
+
 def retrieve_rain_data_for_months(year: int, months: List[int], finalized: bool, interval_code: int):
-    total_rain_by_grid = {}
+    rain_by_grid = {}
     all_data_included = True
     last_rain_date_fin = date(year, sorted(months)[0], 1)
     for month in sorted(months):
@@ -69,14 +71,13 @@ def retrieve_rain_data_for_months(year: int, months: List[int], finalized: bool,
             last_rain_date_fin = last_rain_date
         all_data_included = all_month_data_included
         for grid_id, month_rain in rain_data.items():
-            if grid_id not in total_rain_by_grid:
-                total_rain_by_grid[grid_id] = GridRain(grid_id)
+            if grid_id not in rain_by_grid:
+                rain_by_grid[grid_id] = GridRain(grid_id)
+                rain_by_grid[grid_id].set_rain_in_month(month_rain.month, month_rain.total_rainfall_mm)
+            else:
+                rain_by_grid[grid_id].set_rain_in_month(month_rain.month, month_rain.total_rainfall_mm)
 
-            grid_rain = total_rain_by_grid[grid_id]
-            for month, rainfall_mm in month_rain.items():
-                grid_rain.set_rain_in_month(month, rainfall_mm)
-
-    return RainResponse(year, interval_code, all_data_included, finalized, last_rain_date_fin, [v for v in total_rain_by_grid.values()])
+    return RainResponse(year, interval_code, all_data_included, finalized, last_rain_date_fin, [v for v in rain_by_grid.values()])
 
 
 def retrieve_monthly_rain_data(year: int, month: int, finalized: bool) -> Tuple[bool, date, dict]:
