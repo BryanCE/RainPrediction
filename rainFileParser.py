@@ -20,7 +20,7 @@ class RmaMonthlyRain:
     year: int
     month: int
     total_rainfall_mm: float = 0
-    def set_total_rainfall(self, rainfall_mm):
+    def set_total_rainfall_mm(self, rainfall_mm):
         self.total_rainfall_mm = rainfall_mm
 
 @dataclass
@@ -57,7 +57,7 @@ def retrieve_rain_data_for_months(year: int, months: List[int], finalized: bool,
     total_rain_by_grid = {}
     all_data_included = True
     last_rain_date_fin = date(year, sorted(months)[0], 1)
-    for month in months:
+    for month in sorted(months):
         all_month_data_included, last_rain_date, rain_data = retrieve_monthly_rain_data(year, month, finalized)
         if last_rain_date is not None:
             last_rain_date_fin = last_rain_date
@@ -68,13 +68,16 @@ def retrieve_rain_data_for_months(year: int, months: List[int], finalized: bool,
             else:
                 grid_rain = total_rain_by_grid[grid_id]
                 grid_rain.set_total_rainfall_mm(grid_rain.total_rainfall_mm + month_rain.total_rainfall_mm)
+
     return RainResponse(year, interval_code, all_data_included, finalized, last_rain_date_fin, [v for v in total_rain_by_grid.values()])
+
 
 def retrieve_monthly_rain_data(year: int, month: int, finalized: bool) -> Tuple[bool, date, dict]:
     all_data_included = True
     days_in_month = calculate_days_in_month(year, month)
-    monthly_rain = defaultdict(lambda: RmaMonthlyRain(year, month)) 
+    monthly_rain = defaultdict(lambda: RmaMonthlyRain(year, month))
     last_rain_date = None
+
     for day in range(1, days_in_month + 1):
         results = read_daily_data(year, month, day, finalized)
         if results is None:
@@ -83,8 +86,9 @@ def retrieve_monthly_rain_data(year: int, month: int, finalized: bool) -> Tuple[
         for daily in results:
             last_rain_date = date(year, month, day)
             month_rain = monthly_rain[daily.grid_id]
-            month_rain.set_total_rainfall(month_rain.total_rainfall_mm + daily.rain_mm)
+            month_rain.set_total_rainfall_mm(month_rain.total_rainfall_mm + daily.rain_mm)
             monthly_rain[daily.grid_id] = month_rain
+
     return all_data_included, last_rain_date, dict(monthly_rain)
 
 
