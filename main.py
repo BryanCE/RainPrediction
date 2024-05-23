@@ -6,7 +6,7 @@ from datetime import datetime
 if __name__ == "__main__":
     # Specify the years and months you want to retrieve data for
     years_and_months = [
-        (2020, [1, 2]),
+        (2020, [1]),
     ]
     finalized = False  # Set to True if you want to retrieve finalized data
     interval_code = 1  # Specify the interval code (e.g., 1 for daily data)
