@@ -7,6 +7,8 @@ import struct
 import gzip
 from io import BytesIO
 from typing import List, Dict
+import threading
+
 
 @dataclass
 class RmaDailyRain:
@@ -80,31 +82,12 @@ def retrieve_rain_data_for_months(year: int, months: List[int], finalized: bool,
     return RainResponse(year, interval_code, all_data_included, finalized, last_rain_date_fin, [v for v in rain_by_grid.values()])
 
 
-def retrieve_monthly_rain_data(year: int, month: int, finalized: bool) -> Tuple[bool, date, dict]:
-    all_data_included = True
-    days_in_month = calculate_days_in_month(year, month)
-    monthly_rain = defaultdict(lambda: RmaMonthlyRain(year, month))
-    last_rain_date = None
-
-    for day in range(1, days_in_month + 1):
-        results = read_daily_data(year, month, day, finalized)
-        if results is None:
-            all_data_included = False
-            break
-        for daily in results:
-            last_rain_date = date(year, month, day)
-            month_rain = monthly_rain[daily.grid_id]
-            month_rain.set_total_rainfall_mm(month_rain.total_rainfall_mm + daily.rain_mm)
-            monthly_rain[daily.grid_id] = month_rain
-
-    return all_data_included, last_rain_date, dict(monthly_rain)
-
-
 def read_daily_data(year: int, month: int, day: int, is_final: bool) -> Optional[List[RmaDailyRain]]:
     num_grids = 36000
     month_str = f"{month:02d}"
     day_str = f"{day:02d}"
     folder, type_ = determine_folder_and_type(year, is_final)
+        
 
     url = f"https://ftp.cpc.ncep.noaa.gov/precip/CPC_UNI_PRCP/GAUGE_CONUS/{folder}/{year}/PRCP_CU_GAUGE_V1.0CONUS_0.25deg.lnx.{year}{month_str}{day_str}.{type_}"
 
@@ -114,7 +97,7 @@ def read_daily_data(year: int, month: int, day: int, is_final: bool) -> Optional
         stnm = [struct.unpack('<f', data[i:i + 4])[0] for i in range(num_grids * 4, 2 * num_grids * 4, 4)]
 
         daily_rains = [RmaDailyRain(i + 1, datetime(year, month, day), rain[i] / 10, round(stnm[i]), is_final) for i in
-                       range(num_grids) if rain[i] >= -100]
+                        range(num_grids) if rain[i] >= -100]
         return daily_rains
 
     except requests.exceptions.RequestException as e:
@@ -122,6 +105,37 @@ def read_daily_data(year: int, month: int, day: int, is_final: bool) -> Optional
         return None
 
 
+def retrieve_monthly_rain_data(year: int, month: int, finalized: bool) -> Tuple[bool, date, dict]:
+    all_data_included = True
+    days_in_month = calculate_days_in_month(year, month)
+    monthly_rain = defaultdict(lambda: RmaMonthlyRain(year, month))
+    last_rain_date = None
+    threads = []
+
+    for day in range(1, days_in_month + 1):
+        #trying to thread this so it's faster
+        thread = threading.Thread(target=read_daily_data, args=(year, month, day, finalized))
+        thread.start()
+        threads.append(thread)
+        #results = read_daily_data(year, month, day, finalized)
+        if thread is None:
+            all_data_included = False
+            break
+        for daily in thread:
+            last_rain_date = date(year, month, day)
+            month_rain = monthly_rain[daily.grid_id]
+            month_rain.set_total_rainfall_mm(month_rain.total_rainfall_mm + daily.rain_mm)
+            monthly_rain[daily.grid_id] = month_rain
+
+    # Wait for all threads to complete
+    for thread in threads:
+        thread.join()
+
+    return all_data_included, last_rain_date, dict(monthly_rain)
+
+
+    
+    
 def determine_folder_and_type(year: int, is_final: bool) -> Tuple[str, str]:
     if year < 2007:
         return "V1.0", "gz"
