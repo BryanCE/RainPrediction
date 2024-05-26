@@ -101,7 +101,6 @@ def retrieve_rain_data_for_months(year: int, months: List[int], finalized: bool,
 
 
 def read_daily_data(year: int, month: int, day: int, is_final: bool):
-    global threads
     num_grids = 36000
     month_str = f"{month:02d}"
     day_str = f"{day:02d}"
@@ -138,17 +137,6 @@ def retrieve_monthly_rain_data(year: int, month: int, finalized: bool) -> Tuple[
         thread.start()
         threads.put(thread)
 
-        #results = read_daily_data(year, month, day, finalized)
-        # if thread is None:
-        #     all_data_included = False
-        #     break
-        # for daily in thread:
-        #     last_rain_date = date(year, month, day)
-        #     month_rain = monthly_rain[daily.grid_id]
-        #     month_rain.set_total_rainfall_mm(month_rain.total_rainfall_mm + daily.rain_mm)
-        #     monthly_rain[daily.grid_id] = month_rain
-
-
     while not threads.empty():
         thread = threads.get()
         results.append(thread.join()) 
@@ -166,7 +154,6 @@ def retrieve_monthly_rain_data(year: int, month: int, finalized: bool) -> Tuple[
     return all_data_included, last_rain_date, dict(monthly_rain)
 
 
-    
     
 def determine_folder_and_type(year: int, is_final: bool) -> Tuple[str, str]:
     if year < 2007:
