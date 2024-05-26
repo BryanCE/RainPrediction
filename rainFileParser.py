@@ -7,8 +7,25 @@ import struct
 import gzip
 from io import BytesIO
 from typing import List, Dict
-import threading
+from threading import Thread
+import queue
 
+
+class MyThread(Thread):
+    def __init__(self, group=None, target=None, name=None, args=(), kwargs={}, Verbose=None):
+        Thread.__init__(self, group, target, name, args, kwargs)
+        self._returnVal = None
+
+    def run(self):
+        if self._target is not None:
+            self._returnVal = self._target(*self._args, **self._kwargs)
+
+    def join(self):
+        Thread.join(self)
+        return self._returnVal
+
+threads = queue.Queue()
+results = []
 
 @dataclass
 class RmaDailyRain:
@@ -63,6 +80,7 @@ class RainResponse:
 
 
 
+
 def retrieve_rain_data_for_months(year: int, months: List[int], finalized: bool, interval_code: int):
     rain_by_grid = {}
     all_data_included = True
@@ -82,7 +100,8 @@ def retrieve_rain_data_for_months(year: int, months: List[int], finalized: bool,
     return RainResponse(year, interval_code, all_data_included, finalized, last_rain_date_fin, [v for v in rain_by_grid.values()])
 
 
-def read_daily_data(year: int, month: int, day: int, is_final: bool) -> Optional[List[RmaDailyRain]]:
+def read_daily_data(year: int, month: int, day: int, is_final: bool):
+    global threads
     num_grids = 36000
     month_str = f"{month:02d}"
     day_str = f"{day:02d}"
@@ -106,30 +125,43 @@ def read_daily_data(year: int, month: int, day: int, is_final: bool) -> Optional
 
 
 def retrieve_monthly_rain_data(year: int, month: int, finalized: bool) -> Tuple[bool, date, dict]:
+    global threads
+    global results
     all_data_included = True
     days_in_month = calculate_days_in_month(year, month)
     monthly_rain = defaultdict(lambda: RmaMonthlyRain(year, month))
     last_rain_date = None
-    threads = []
+
 
     for day in range(1, days_in_month + 1):
-        #trying to thread this so it's faster
-        thread = threading.Thread(target=read_daily_data, args=(year, month, day, finalized))
+        thread = MyThread(target=read_daily_data, args=(year, month, day, finalized))
         thread.start()
-        threads.append(thread)
-        #results = read_daily_data(year, month, day, finalized)
-        if thread is None:
-            all_data_included = False
-            break
-        for daily in thread:
-            last_rain_date = date(year, month, day)
-            month_rain = monthly_rain[daily.grid_id]
-            month_rain.set_total_rainfall_mm(month_rain.total_rainfall_mm + daily.rain_mm)
-            monthly_rain[daily.grid_id] = month_rain
+        threads.put(thread)
 
-    # Wait for all threads to complete
-    for thread in threads:
-        thread.join()
+        #results = read_daily_data(year, month, day, finalized)
+        # if thread is None:
+        #     all_data_included = False
+        #     break
+        # for daily in thread:
+        #     last_rain_date = date(year, month, day)
+        #     month_rain = monthly_rain[daily.grid_id]
+        #     month_rain.set_total_rainfall_mm(month_rain.total_rainfall_mm + daily.rain_mm)
+        #     monthly_rain[daily.grid_id] = month_rain
+
+
+    while not threads.empty():
+        thread = threads.get()
+        results.append(thread.join()) 
+    if results is None:
+        all_data_included = False
+    # Flatten the list of lists
+    flattened_results = [daily for daily_list in results for daily in daily_list]
+    for daily in flattened_results:
+        last_rain_date = date(year, month, day)
+        month_rain = monthly_rain[daily.grid_id]
+        month_rain.set_total_rainfall_mm(month_rain.total_rainfall_mm + daily.rain_mm)
+        monthly_rain[daily.grid_id] = month_rain
+    
 
     return all_data_included, last_rain_date, dict(monthly_rain)
 
