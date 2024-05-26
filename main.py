@@ -49,10 +49,13 @@ def create_json(rain_data: RainResponse):
         json.dump(data, jsonfile, indent=4)
 
 if __name__ == "__main__":
-    year = 2022
+    print("Press x to exit when done.")
+    yearToUse = input("Enter the year you want to retrieve data for: ")
+    year = int(yearToUse)
     months = list(range(1, 13))  # Retrieve data for all months
     finalized = True  # Assuming you want to retrieve the finalized data
     interval_code = 1  # Replace with the appropriate interval code
     rain_data = retrieve_rain_data_for_months(year, months, finalized, interval_code)
     #create_csv(rain_data)
     create_json(rain_data)
+    print("Data has been saved to JSON file, check the project directory for the file.")
