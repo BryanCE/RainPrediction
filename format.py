@@ -14,7 +14,7 @@ def process_files(directory):
                 item['Year'] = year
                 modified_data.append(item)
 
-            output_filename = f"output_{filename}"
+            output_filename = f"precip_{year}.json"
             output_file_path = os.path.join(directory, output_filename)
             with open(output_file_path, 'w') as file:
                 json.dump(modified_data, file, indent=4)
@@ -22,5 +22,5 @@ def process_files(directory):
             print(f"Processed file: {filename}")
 
 if __name__ == '__main__':
-    directory = 'path/to/directory'
+    directory = os.getcwd()
     process_files(directory)
