@@ -108,7 +108,7 @@ def read_daily_data(year: int, month: int, day: int, is_final: bool):
         
 
     url = f"https://ftp.cpc.ncep.noaa.gov/precip/CPC_UNI_PRCP/GAUGE_CONUS/{folder}/{year}/PRCP_CU_GAUGE_V1.0CONUS_0.25deg.lnx.{year}{month_str}{day_str}.{type_}"
-
+#https://ftp.cpc.ncep.noaa.gov/precip/CPC_UNI_PRCP/GAUGE_CONUS/UPDATED/DOCU/CPC_Gauge_Ananalysis_Procedure_final_20210316.pdf
     try:
         data = get_little_endian_data(url, type_)
         rain = [struct.unpack('<f', data[i:i + 4])[0] for i in range(0, num_grids * 4, 4)]
